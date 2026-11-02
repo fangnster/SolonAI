@@ -110,6 +110,6 @@ if __name__ == "__main__":
     p.add_argument("--redis-server", type=Path, required=True)
     p.add_argument("--redis-log", type=Path)
     a = p.parse_args()
-    body = asyncio.run(run(a.project.resolve(), a.redis_server.resolve(), a.redis_log))
+    body = asyncio.run(run(a.project.resolve(), a.redis_server.absolute(), a.redis_log))
     print(json.dumps(body, indent=2))
     sys.exit(0 if body["verified"] else 1)

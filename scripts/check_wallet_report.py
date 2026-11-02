@@ -49,6 +49,14 @@ def check(out, node, redis_server):
         counts[f"python_{label}"] = expected
 
     helper = PROJECT / "scripts/wallet_report"
+    alias = json.loads(
+        run(
+            [sys.executable, helper / "check_executable_alias.py", "--redis-server", redis_server],
+            out / "redis-executable-alias.log",
+        ).stdout
+    )
+    if alias.get("verified") is not True:
+        raise ValueError("Redis executable alias was not preserved")
     race = json.loads(
         run(
             [sys.executable, helper / "real_redis_demo.py", "--redis-server", redis_server],
@@ -100,6 +108,7 @@ def check(out, node, redis_server):
         "tests": counts,
         "total_tests": sum(counts.values()),
         "real_redis_version": race["redis_version"],
+        "redis_executable_alias_verified": True,
         "independent_processes": race["independent_python_processes"],
         "cached_worker": race["cached_worker"],
         "cached_raw": race["cached_raw"],
@@ -120,6 +129,6 @@ if __name__ == "__main__":
         parser.error("Node 24 and redis-server must be installed or passed as explicit paths")
     print(
         json.dumps(
-            check(args.out.resolve(), args.node.resolve(), args.redis_server.resolve()), indent=2
+            check(args.out.resolve(), args.node.resolve(), args.redis_server.absolute()), indent=2
         )
     )

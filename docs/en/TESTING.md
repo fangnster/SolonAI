@@ -25,6 +25,8 @@ Use a new output directory for each run. If needed, append `--node /absolute/pat
 
 The runner also executes real Redis integration outside those test counts. Two independent Python workers use the actual cache coordinator and Lua script. Handshakes ensure A starts first, B reserves and publishes raw 50, then A resumes and its raw 100 is rejected. The check also exercises physical reservation expiry and old-token replay rejection.
 
+An executable-alias regression copies the Redis binary under the name `redis-check-rdb`, creates a `redis-server` symlink to it, and verifies startup through that alias. Ubuntu packages can dispatch Redis modes using the executable name; resolving the symlink before execution incorrectly starts the checker. The harness and runner preserve the server alias.
+
 The SDK/API scenario executes real solana-py/solders decoding, WalletService and FastAPI, with only outbound RPC HTTP and price dependencies replaced. It observes cold read age 0, cached age 2500 with the original read start, and a forced read with a new start. Its generated JSON is passed into all four Node suites. Redis uses a temporary private Unix socket with port 0 and is cleaned up afterwards.
 
 Logs are written per suite; `results.json` is created only after all required checks pass. Read the specific error before changing an expectation. A missing executable or import failure is an environment failure, not evidence that a business-rule mutation was detected.

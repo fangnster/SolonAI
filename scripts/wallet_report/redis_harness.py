@@ -20,7 +20,9 @@ async def isolated_redis(binary, log_output=None):
         with log.open("w") as stream:
             process = subprocess.Popen(
                 [
-                    str(Path(binary).resolve()),
+                    # Redis distro packages can use an argv[0]-selected multicall binary.
+                    # Preserve the redis-server symlink name instead of invoking redis-check-rdb.
+                    str(Path(binary).absolute()),
                     "--port",
                     "0",
                     "--unixsocket",
