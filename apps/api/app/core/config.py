@@ -33,6 +33,7 @@ class Settings(BaseSettings):
     # Redis配置
     REDIS_URL: str = "redis://localhost:6379"
     CACHE_TTL_ASSETS: int = 60
+    REPORT_READ_TIMEOUT_SECONDS: float = 20.0
     CACHE_TTL_CHAT_SESSIONS: int = 120
     CACHE_TTL_CHAT_MESSAGES: int = 120
     CACHE_TTL_STRATEGY: int = 300

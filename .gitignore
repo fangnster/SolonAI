@@ -51,6 +51,7 @@ coverage/
 
 # Misc
 .cache/
+.wallet-report-results*/
 .temp/
 tmp/
 

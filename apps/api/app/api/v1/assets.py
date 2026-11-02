@@ -6,7 +6,7 @@
 
 import os
 import sys
-from typing import List, Optional
+from typing import List, Literal, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
@@ -19,13 +19,29 @@ project_root = os.path.abspath(os.path.join(current_dir, "..", "..", "..", "..",
 services_path = os.path.join(project_root, "services")
 sys.path.insert(0, services_path)
 
-from app.core.cache import cache_get_json, cache_set_json  # noqa: E402
-from app.core.config import settings  # noqa: E402
 from app.core.database import get_db  # noqa: E402
 from app.core.redis import get_redis  # noqa: E402
+from app.core.wallet_report_cache import (
+    ReportContext,
+    ReportFreshnessError,
+    get_wallet_report_cache,
+)  # noqa: E402
 from app.models import User  # noqa: E402
 
 router = APIRouter()
+
+
+def _exact_amount(raw: int, decimals: int) -> str:
+    """Format validated integer units without float or Decimal arithmetic."""
+    if type(raw) is not int or not 0 <= raw <= 2**64 - 1:
+        raise ValueError("raw amount must be a u64 integer")
+    if type(decimals) is not int or not 0 <= decimals <= 255:
+        raise ValueError("decimals must be a u8 integer")
+    digits = str(raw)
+    if decimals == 0:
+        return digits
+    digits = digits.zfill(decimals + 1)
+    return f"{digits[:-decimals]}.{digits[-decimals:]}"
 
 
 def get_wallet_service():
@@ -67,20 +83,37 @@ class TokenAsset(BaseModel):
     symbol: str  # Token 符号
     name: str  # Token 名称
     mint: Optional[str] = None  # Mint 地址
-    balance: float  # 余额
+    account_address: str
+    token_owner: str
+    program_id: str
+    observed_slot: str  # u64 read context encoded as text for JavaScript
+    balance: float  # Legacy approximate field; new clients use balance_exact
+    balance_raw: str  # Integer units encoded as a JSON string
+    decimals: int
+    balance_exact: str  # Fixed-point text, derived only from raw and decimals
     price_usd: float  # 美元价格
     value_usd: float  # 美元价值
 
 
-class WalletAssets(BaseModel):
+class WalletAssetsPayload(BaseModel):
     """钱包资产"""
 
     wallet_address: str
+    quantity_schema_version: Literal[2] = 2
+    account_identity_version: Literal[1] = 1
+    token_observed_slot: Optional[str]
+    sol_balance_raw: str
+    sol_decimals: Literal[9] = 9
+    sol_balance_exact: str
     sol_balance: float  # SOL 余额
     sol_price_usd: float  # SOL 价格
     sol_value_usd: float  # SOL 价值
     tokens: List[TokenAsset]  # Token 列表
     total_value_usd: float  # 总价值
+
+
+class WalletAssets(WalletAssetsPayload):
+    report_context: ReportContext
 
 
 class SwapQuoteRequest(BaseModel):
@@ -137,63 +170,80 @@ class AssetDiagnosis(BaseModel):
 # ===== API 接口 =====
 
 
-@router.get("/{wallet_address}", response_model=WalletAssets)
-async def get_assets(wallet_address: str, redis=Depends(get_redis)):
-    """
-    获取钱包资产
-
-    查询链上真实数据：
-    - SOL 余额
-    - SPL Token 余额
-    - 计算总价值（美元）
-    """
+async def _build_assets_payload(wallet_address: str):
+    # 使用新的 WalletService 获取资产
+    wallet_service = get_wallet_service()
     try:
-        cache_key = f"assets:wallet:{wallet_address}"
-        cached = await cache_get_json(redis, cache_key)
-        if cached is not None:
-            return cached
+        portfolio = await wallet_service.get_wallet_portfolio(wallet_address, use_cache=False)
+    finally:
+        await wallet_service.close()
 
-        # 使用新的 WalletService 获取资产
-        wallet_service = get_wallet_service()
-        try:
-            portfolio = await wallet_service.get_wallet_portfolio(wallet_address)
-        finally:
-            await wallet_service.close()
-
-        # 转换为 API 响应格式
-        tokens = [
-            TokenAsset(
-                symbol=t.symbol or "UNKNOWN",
-                name=t.name or t.mint[:8] + "...",
-                mint=t.mint,
-                balance=float(t.balance),
-                price_usd=float(t.usd_value / t.balance) if t.usd_value and t.balance else 0.0,
-                value_usd=float(t.usd_value) if t.usd_value else 0.0,
-            )
-            for t in portfolio.tokens
-        ]
-
-        sol_price = 0.0
-        sol_value = 0.0
-        if portfolio.sol_balance.usd_value and portfolio.sol_balance.sol:
-            sol_price = float(portfolio.sol_balance.usd_value / portfolio.sol_balance.sol)
-            sol_value = float(portfolio.sol_balance.usd_value)
-
-        response = WalletAssets(
-            wallet_address=wallet_address,
-            sol_balance=float(portfolio.sol_balance.sol),
-            sol_price_usd=sol_price,
-            sol_value_usd=sol_value,
-            tokens=tokens,
-            total_value_usd=float(portfolio.total_usd_value),
+    # 转换为 API 响应格式
+    tokens = [
+        TokenAsset(
+            symbol=t.symbol or "UNKNOWN",
+            name=t.name or t.mint[:8] + "...",
+            mint=t.mint,
+            account_address=t.account_address,
+            token_owner=t.token_owner,
+            program_id=t.program_id,
+            observed_slot=str(t.observed_slot),
+            balance=float(t.balance),
+            balance_raw=str(t.balance_raw),
+            decimals=t.decimals,
+            balance_exact=_exact_amount(t.balance_raw, t.decimals),
+            price_usd=float(t.usd_value / t.balance) if t.usd_value and t.balance else 0.0,
+            value_usd=float(t.usd_value) if t.usd_value else 0.0,
         )
-        await cache_set_json(redis, cache_key, response.model_dump(), settings.CACHE_TTL_ASSETS)
-        return response
+        for t in portfolio.tokens
+    ]
 
+    sol_price = 0.0
+    sol_value = 0.0
+    if portfolio.sol_balance.usd_value and portfolio.sol_balance.sol:
+        sol_price = float(portfolio.sol_balance.usd_value / portfolio.sol_balance.sol)
+        sol_value = float(portfolio.sol_balance.usd_value)
+
+    response = WalletAssetsPayload(
+        wallet_address=wallet_address,
+        token_observed_slot=(
+            str(portfolio.token_observed_slot)
+            if portfolio.token_observed_slot is not None
+            else None
+        ),
+        sol_balance_raw=str(portfolio.sol_balance.lamports),
+        sol_balance_exact=_exact_amount(portfolio.sol_balance.lamports, 9),
+        sol_balance=float(portfolio.sol_balance.sol),
+        sol_price_usd=sol_price,
+        sol_value_usd=sol_value,
+        tokens=tokens,
+        total_value_usd=float(portfolio.total_usd_value),
+    )
+    return response.model_dump()
+
+
+@router.get("/{wallet_address}", response_model=WalletAssets)
+async def get_assets(
+    wallet_address: str,
+    refresh: bool = False,
+    redis=Depends(get_redis),
+    reports=Depends(get_wallet_report_cache),
+):
+    """Return a bounded-age account read; refresh skips stored reports and may join an active read."""
+    try:
+        return await reports.get(
+            redis,
+            wallet_address,
+            lambda: _build_assets_payload(wallet_address),
+            lambda payload: WalletAssetsPayload.model_validate(payload).model_dump(),
+            refresh=refresh,
+        )
+    except ReportFreshnessError as error:
+        raise HTTPException(status_code=503, detail=str(error)) from error
     except HTTPException:
         raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"获取资产失败: {str(e)}")
+    except Exception as error:
+        raise HTTPException(status_code=500, detail=f"获取资产失败: {str(error)}") from error
 
 
 @router.get("/{wallet_address}/diagnosis", response_model=AssetDiagnosis)

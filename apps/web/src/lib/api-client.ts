@@ -1,4 +1,9 @@
 import axios from 'axios'
+import { validateWalletQuantities } from './exact-amount'
+import type { WalletQuantityView } from './wallet-asset-view'
+import { validateWalletIdentities, type TokenIdentity } from './wallet-identity'
+import { readReportContext, type ReportContext } from './report-context.ts'
+import { ReportAgeTracker, sampleLocalTime } from './report-age.ts'
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
 
@@ -211,24 +216,35 @@ export const chatApi = {
 
 // ===== 资产 API =====
 
-export interface TokenAsset {
+export interface TokenAsset extends TokenIdentity {
   mint: string
   symbol: string
   name: string
   balance: number
+  balance_raw: string
   decimals: number
-  usd_value: number
+  balance_exact: string
+  value_usd: number
   price_usd: number
 }
 
-export interface WalletAssetsResponse {
+export interface WalletAssetsResponse extends WalletQuantityView {
+  report_context: ReportContext
   wallet_address: string
+  quantity_schema_version: 2
+  account_identity_version: 1
+  token_observed_slot: string | null
+  sol_balance_raw: string
+  sol_decimals: 9
+  sol_balance_exact: string
   sol_balance: number
   sol_price_usd: number
   sol_value_usd: number
   tokens: TokenAsset[]
   total_value_usd: number
 }
+
+export type WalletAssetsRead = WalletAssetsResponse & { client_age_tracker: ReportAgeTracker }
 
 export interface AssetDiagnosisResponse {
   wallet_address: string
@@ -266,8 +282,20 @@ export const assetsApi = {
   /**
    * 获取钱包资产
    */
-  getWalletAssets: (walletAddress: string): Promise<WalletAssetsResponse> => {
-    return apiClient.get(`/api/v1/assets/${walletAddress}`)
+  getWalletAssets: async (walletAddress: string, refresh = false): Promise<WalletAssetsRead> => {
+    const sent = sampleLocalTime()
+    const data = await apiClient.get<WalletAssetsResponse, WalletAssetsResponse>(
+      `/api/v1/assets/${walletAddress}`,
+      { params: { refresh } }
+    )
+    const received = sampleLocalTime()
+    validateWalletQuantities(data)
+    validateWalletIdentities(data, walletAddress)
+    readReportContext(data.report_context)
+    return {
+      ...data,
+      client_age_tracker: new ReportAgeTracker(data.report_context, sent, received),
+    }
   },
 
   /**

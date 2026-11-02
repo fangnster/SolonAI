@@ -5,7 +5,7 @@
 from decimal import Decimal
 from typing import Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class SolBalance(BaseModel):
@@ -19,6 +19,12 @@ class SolBalance(BaseModel):
 class TokenAccount(BaseModel):
     """SPL Token 账户"""
 
+    model_config = ConfigDict(frozen=True)
+
+    account_address: str = Field(strict=True, min_length=1)
+    token_owner: str = Field(strict=True, min_length=1)
+    program_id: str = Field(strict=True, min_length=1)
+    observed_slot: int = Field(strict=True, ge=0, le=2**64 - 1)
     mint: str = Field(description="Token Mint 地址")
     symbol: Optional[str] = Field(default=None, description="Token 符号")
     name: Optional[str] = Field(default=None, description="Token 名称")
@@ -34,4 +40,7 @@ class WalletPortfolio(BaseModel):
     wallet_address: str = Field(description="钱包地址")
     sol_balance: SolBalance = Field(description="SOL 余额")
     tokens: list[TokenAccount] = Field(default_factory=list, description="Token 持仓列表")
+    token_observed_slot: Optional[int] = Field(
+        default=None, description="Token读取slot；空列表未知"
+    )
     total_usd_value: Decimal = Field(default=Decimal("0"), description="总 USD 价值")

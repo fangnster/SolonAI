@@ -26,6 +26,7 @@ from ..exceptions import (
     RPCTimeoutError,
     TransactionSendError,
 )
+from .token_accounts import LEGACY_TOKEN_PROGRAM_ID, parse_token_accounts_response
 
 logger = logging.getLogger(__name__)
 
@@ -116,41 +117,24 @@ class EnhancedRPCClient:
 
     async def get_token_accounts_parsed(self, address: str) -> List[Dict[str, Any]]:
         """
-        获取钱包所有 SPL Token 账户（解析后）
+        获取Legacy Token Program账户，包括合法零余额账户。
 
         Returns:
-            解析后的 Token 账户列表，包含 mint, balance, decimals
+            Raw数量、精度和账户来源信息；非法业务字段使整批失败。
         """
         pubkey = _validate_address(address)
-        token_program = Pubkey.from_string("TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA")
+        token_program = Pubkey.from_string(LEGACY_TOKEN_PROGRAM_ID)
 
         async def _call(client: AsyncClient):
             opts = TokenAccountOpts(program_id=token_program)
-            resp = await client.get_token_accounts_by_owner_json_parsed(
+            return await client.get_token_accounts_by_owner_json_parsed(
                 pubkey,
                 opts,
             )
-            accounts = []
-            if resp.value:
-                for account in resp.value:
-                    try:
-                        info = account.account.data.parsed["info"]
-                        token_amount = info.get("tokenAmount", {})
-                        ui_amount = token_amount.get("uiAmount")
-                        if ui_amount is not None and ui_amount > 0:
-                            accounts.append(
-                                {
-                                    "mint": info["mint"],
-                                    "balance_raw": int(token_amount.get("amount", 0)),
-                                    "balance": float(ui_amount),
-                                    "decimals": token_amount.get("decimals", 0),
-                                }
-                            )
-                    except (KeyError, TypeError):
-                        continue
-            return accounts
 
-        return await self._execute_with_retry("get_token_accounts", _call)
+        response = await self._execute_with_retry("get_token_accounts", _call)
+        # Business validation happens after transport retries, so bad data is not retried.
+        return parse_token_accounts_response(response, str(pubkey))
 
     async def get_transaction(self, signature_str: str) -> Optional[Dict[str, Any]]:
         """获取交易详情"""

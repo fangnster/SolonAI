@@ -127,9 +127,16 @@ def cached(prefix: str, ttl: int):
     def decorator(func: Callable):
         @functools.wraps(func)
         async def wrapper(*args, **kwargs):
+            # Wallet methods explicitly accept use_cache; a fresh API report bypasses every layer.
+            use_cache = kwargs.get("use_cache", True)
+            if type(use_cache) is not bool:
+                raise TypeError("use_cache must be a bool")
+            if not use_cache:
+                return await func(*args, **kwargs)
             # 跳过 self 参数生成 key
             cache_args = args[1:] if args else args
-            key = _make_cache_key(prefix, *cache_args, **kwargs)
+            cache_kwargs = {k: v for k, v in kwargs.items() if k != "use_cache"}
+            key = _make_cache_key(prefix, *cache_args, **cache_kwargs)
 
             cache = get_cache()
             result = await cache.get(key)
@@ -145,7 +152,9 @@ def cached(prefix: str, ttl: int):
             return result
 
         # 暴露缓存清理方法
-        wrapper.invalidate = lambda *a, **kw: get_cache().delete(_make_cache_key(prefix, *a, **kw))
+        wrapper.invalidate = lambda *a, **kw: get_cache().delete(
+            _make_cache_key(prefix, *a, **{k: v for k, v in kw.items() if k != "use_cache"})
+        )
 
         return wrapper
 

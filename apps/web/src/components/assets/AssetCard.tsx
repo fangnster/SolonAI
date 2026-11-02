@@ -6,7 +6,8 @@ interface AssetCardProps {
   icon: string
   symbol: string
   name: string
-  amount: number
+  amount?: number
+  amountExact?: string
   value?: number
   change24h?: number
 }
@@ -16,6 +17,7 @@ export const AssetCard: React.FC<AssetCardProps> = ({
   symbol,
   name,
   amount,
+  amountExact,
   value = 0,
   change24h = 0,
 }) => {
@@ -37,7 +39,7 @@ export const AssetCard: React.FC<AssetCardProps> = ({
               <span className="text-sm text-gray-400">{name}</span>
             </div>
             <p className="mt-1 text-sm text-gray-400">
-              {amount.toLocaleString()} {symbol}
+              {amountExact !== undefined ? amountExact : (amount?.toLocaleString() ?? '—')} {symbol}
             </p>
           </div>
         </div>

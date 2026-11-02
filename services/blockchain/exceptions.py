@@ -49,6 +49,15 @@ class RPCRateLimitError(SolanaRPCError):
         self.retry_after = retry_after
 
 
+class RPCResponseValidationError(SolanaRPCError):
+    """A received response violates the parsed account contract; do not retry it."""
+
+    def __init__(self, path: str, reason: str):
+        self.path = path
+        self.reason = reason
+        super().__init__("RPC response validation failed", f"{path}: {reason}")
+
+
 # ---- 交易相关 ----
 
 

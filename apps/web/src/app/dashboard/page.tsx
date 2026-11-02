@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useWallet } from '@solana/wallet-adapter-react'
 import { StatCard } from '@/components/dashboard/StatCard'
 import { AssetCard } from '@/components/assets/AssetCard'
@@ -10,12 +10,15 @@ import { Button } from '@/components/ui/Button'
 import { useTranslation } from '@/hooks/useTranslation'
 import { mockAssets, mockPortfolioStats } from '@/data/mockAssets'
 import { mockStrategies } from '@/data/mockStrategies'
+import { walletAssetCards } from '@/lib/wallet-asset-view'
+import { LatestWalletRequest, loadLatestWallet } from '@/lib/latest-wallet-request'
 import {
-  assetsApi,
-  WalletAssetsResponse,
-  AssetDiagnosisResponse,
-  PnLResponse,
-} from '@/lib/api-client'
+  liveReportAgeLabel,
+  sampleLocalTime,
+  type ReportAgeView,
+  type ReportAgeTracker,
+} from '@/lib/report-age.ts'
+import { assetsApi, WalletAssetsRead, AssetDiagnosisResponse, PnLResponse } from '@/lib/api-client'
 
 type TabType = 'overview' | 'profit' | 'risk'
 
@@ -23,31 +26,65 @@ export default function DashboardPage() {
   const { t } = useTranslation()
   const { publicKey, connected } = useWallet()
   const [activeTab, setActiveTab] = useState<TabType>('overview')
-  const [walletAssets, setWalletAssets] = useState<WalletAssetsResponse | null>(null)
+  const [storedWalletAssets, setWalletAssets] = useState<WalletAssetsRead | null>(null)
+  const walletAddress = connected && publicKey ? publicKey.toBase58() : null
+  const walletAssets =
+    storedWalletAssets?.wallet_address === walletAddress ? storedWalletAssets : null
+  const walletRequests = useRef(new LatestWalletRequest())
+  const [walletLoading, setWalletLoading] = useState(false)
   const [diagnosis, setDiagnosis] = useState<AssetDiagnosisResponse | null>(null)
   const [pnl, setPnl] = useState<PnLResponse | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [ageState, setAgeState] = useState<{
+    tracker: ReportAgeTracker
+    view: ReportAgeView
+  } | null>(null)
+  const liveAge = ageState?.tracker === walletAssets?.client_age_tracker ? ageState?.view : null
+  const displayWalletAssets = liveAge && !liveAge.expired ? walletAssets : null
+
+  useEffect(() => {
+    if (!walletAssets) {
+      setAgeState(null)
+      return
+    }
+    const tracker = walletAssets.client_age_tracker
+    const update = () => setAgeState({ tracker, view: tracker.observe(sampleLocalTime()) })
+    update()
+    const timer = window.setInterval(update, 1000)
+    window.addEventListener('focus', update)
+    window.addEventListener('pageshow', update)
+    document.addEventListener('visibilitychange', update)
+    return () => {
+      window.clearInterval(timer)
+      window.removeEventListener('focus', update)
+      window.removeEventListener('pageshow', update)
+      document.removeEventListener('visibilitychange', update)
+    }
+  }, [walletAssets])
 
   // 获取钱包资产
-  const fetchWalletAssets = async () => {
-    if (!publicKey) return
+  const fetchWalletAssets = async (forceRefresh = false) => {
+    if (!walletAddress) return
 
-    setIsLoading(true)
     setError(null)
-    try {
-      const data = await assetsApi.getWalletAssets(publicKey.toBase58())
-      setWalletAssets(data)
-    } catch (err) {
-      console.error('Failed to fetch wallet assets:', err)
-      setError('获取资产数据失败')
-    } finally {
-      setIsLoading(false)
-    }
+    await loadLatestWallet<WalletAssetsRead>(
+      walletRequests.current,
+      walletAddress,
+      (address) => assetsApi.getWalletAssets(address, forceRefresh),
+      {
+        success: setWalletAssets,
+        error: (err) => {
+          console.error('Failed to fetch wallet assets:', err)
+          setError('获取资产数据失败')
+        },
+        loading: setWalletLoading,
+      }
+    )
   }
 
   useEffect(() => {
-    if (connected && publicKey) {
+    if (walletAddress) {
       fetchWalletAssets()
       if (activeTab === 'profit') {
         fetchPnL()
@@ -55,12 +92,16 @@ export default function DashboardPage() {
         fetchDiagnosis()
       }
     } else {
+      walletRequests.current.invalidate()
+      setWalletLoading(false)
       setWalletAssets(null)
       setDiagnosis(null)
       setPnl(null)
     }
+    const gate = walletRequests.current
+    return () => gate.invalidate()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [connected, publicKey, activeTab])
+  }, [walletAddress, activeTab])
 
   const fetchPnL = async () => {
     if (!publicKey) return
@@ -91,30 +132,14 @@ export default function DashboardPage() {
   }
 
   // 转换为 AssetCard 格式
-  const displayAssets = walletAssets
-    ? [
-        {
-          id: 'sol',
-          icon: 'S',
-          symbol: 'SOL',
-          name: 'Solana',
-          amount: walletAssets.sol_balance,
-          value: walletAssets.sol_value_usd,
-          change24h: 0, // TODO: 需要历史价格数据
-        },
-        ...walletAssets.tokens.map((token) => ({
-          id: token.mint,
-          icon: token.symbol.charAt(0),
-          symbol: token.symbol,
-          name: token.name,
-          amount: token.balance,
-          value: token.usd_value,
-          change24h: 0, // TODO: 需要历史价格数据
-        })),
-      ]
-    : mockAssets
+  const displayAssets = displayWalletAssets
+    ? walletAssetCards(displayWalletAssets)
+    : connected
+      ? []
+      : mockAssets
 
-  const totalValue = walletAssets?.total_value_usd || mockPortfolioStats.totalValue
+  const totalValue =
+    displayWalletAssets?.total_value_usd ?? (connected ? null : mockPortfolioStats.totalValue)
 
   const tabs = [
     { id: 'overview' as TabType, name: '资产总览' },
@@ -151,7 +176,7 @@ export default function DashboardPage() {
         )}
 
         {/* 加载状态 */}
-        {isLoading && (
+        {(isLoading || walletLoading) && (
           <Card className="mb-8 p-6">
             <div className="flex items-center gap-4">
               <div className="h-8 w-8 animate-spin rounded-full border-4 border-indigo-500 border-t-transparent"></div>
@@ -169,7 +194,7 @@ export default function DashboardPage() {
                 <h3 className="mb-1 font-semibold text-white">加载失败</h3>
                 <p className="text-sm text-gray-300">{error}</p>
               </div>
-              <Button variant="outline" size="sm" onClick={fetchWalletAssets}>
+              <Button variant="outline" size="sm" onClick={() => fetchWalletAssets(true)}>
                 重试
               </Button>
             </div>
@@ -177,10 +202,17 @@ export default function DashboardPage() {
         )}
 
         {/* Stats Cards */}
+        {walletAssets && (
+          <p className="mb-4 text-sm text-gray-400">
+            {liveAge
+              ? liveReportAgeLabel(liveAge, walletAssets.report_context)
+              : '正在核对报告年龄…'}
+          </p>
+        )}
         <div className="mb-8 grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-4">
           <StatCard
             title={t('dashboard.totalValue')}
-            value={`$${totalValue.toLocaleString()}`}
+            value={totalValue === null ? '—' : `$${totalValue.toLocaleString()}`}
             change={mockPortfolioStats.change24h}
             trend={mockPortfolioStats.change24h >= 0 ? 'up' : 'down'}
             icon="💰"
@@ -228,8 +260,12 @@ export default function DashboardPage() {
             <div>
               <div className="mb-6 flex items-center justify-between">
                 <h2 className="text-2xl font-bold text-white">{t('dashboard.assets')}</h2>
-                <button className="text-sm text-indigo-400 hover:text-indigo-300">
-                  查看全部 →
+                <button
+                  className="text-sm text-indigo-400 hover:text-indigo-300"
+                  onClick={() => fetchWalletAssets(true)}
+                  disabled={!connected || walletLoading}
+                >
+                  刷新报告
                 </button>
               </div>
               <div className="space-y-4">
@@ -239,9 +275,9 @@ export default function DashboardPage() {
               </div>
 
               {connected &&
-                walletAssets &&
-                walletAssets.tokens.length === 0 &&
-                walletAssets.sol_balance === 0 && (
+                displayWalletAssets &&
+                displayWalletAssets.tokens.length === 0 &&
+                displayWalletAssets.sol_balance_raw === '0' && (
                   <Card className="p-6">
                     <div className="text-center">
                       <span className="text-4xl">🪙</span>

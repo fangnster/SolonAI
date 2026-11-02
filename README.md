@@ -1,5 +1,7 @@
 # Solon AI
 
+简体中文 | [English](README.en.md)
+
 > Solana生态全链路非托管AI金融智能体
 
 ## 项目简介
@@ -160,6 +162,8 @@ python main.py
 - API文档: http://localhost:8000/docs
 
 ## 开发指南
+
+钱包报告的精确数量、账户身份、缓存时效及离线/真实 Redis 回归步骤见 [wallet-report.md](docs/wallet-report.md)。该回归套件使用 Node.js 24。
 
 ### 代码规范
 

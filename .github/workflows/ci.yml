@@ -4,7 +4,7 @@ on:
   pull_request:
     branches: [develop, main]
   push:
-    branches: [develop, main]
+    branches: [develop, main, 'course/**']
 
 jobs:
   # ==========================================
@@ -20,7 +20,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '18'
+          node-version: '24'
           cache: 'npm'
 
       - name: Install dependencies
@@ -46,7 +46,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '18'
+          node-version: '24'
           cache: 'npm'
 
       - name: Install dependencies
@@ -77,10 +77,40 @@ jobs:
         run: pip install -r apps/api/requirements.txt
 
       - name: Ruff check
-        run: ruff check apps/api/ services/
+        run: ruff check apps/api/ services/ scripts/check_wallet_report.py scripts/wallet_report/
 
       - name: Ruff format check
-        run: ruff format --check apps/api/ services/
+        run: ruff format --check apps/api/ services/ scripts/check_wallet_report.py scripts/wallet_report/
+
+  # ==========================================
+  # 钱包数量、账户身份与报告缓存回归
+  # ==========================================
+  wallet-report:
+    name: Wallet report regression
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Install Python dependencies
+        run: python -m pip install -r apps/api/requirements.txt
+      - name: Install isolated-test Redis runtime
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y redis-server
+      - name: Offline suites and real Redis publication
+        run: python scripts/check_wallet_report.py --out .wallet-report-results
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: wallet-report-results
+          path: .wallet-report-results
+          include-hidden-files: true
 
   # ==========================================
   # Commitlint 检查
@@ -98,7 +128,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '18'
+          node-version: '24'
           cache: 'npm'
 
       - name: Install dependencies
