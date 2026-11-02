@@ -77,10 +77,10 @@ jobs:
         run: pip install -r apps/api/requirements.txt
 
       - name: Ruff check
-        run: ruff check apps/api/ services/ scripts/check_wallet_report.py scripts/wallet_report/
+        run: ruff check apps/api/ services/ scripts/check_wallet_report.py scripts/trace_wallet_sources.py scripts/wallet_report/
 
       - name: Ruff format check
-        run: ruff format --check apps/api/ services/ scripts/check_wallet_report.py scripts/wallet_report/
+        run: ruff format --check apps/api/ services/ scripts/check_wallet_report.py scripts/trace_wallet_sources.py scripts/wallet_report/
 
   # ==========================================
   # 钱包数量、账户身份与报告缓存回归
@@ -105,6 +105,8 @@ jobs:
           sudo apt-get install -y redis-server
       - name: Offline suites and real Redis publication
         run: python scripts/check_wallet_report.py --out .wallet-report-results
+      - name: Trace synthetic upstream fields and rejection boundaries
+        run: python scripts/trace_wallet_sources.py --case all --out .wallet-report-results/source-trace
       - uses: actions/upload-artifact@v4
         if: always()
         with:

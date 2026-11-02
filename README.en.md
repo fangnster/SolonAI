@@ -11,6 +11,8 @@ The wallet-report changes focus on a concrete problem: preserve token quantities
 - [Setup and configuration](docs/en/SETUP.md): reproduce the offline checks first, then start a local API and frontend.
 - [Architecture and current status](docs/en/ARCHITECTURE.md): component responsibilities, data flow and remaining work.
 - [Wallet API reference](docs/en/API.md): quantity, identity, freshness and error contracts.
+- [Wallet field provenance](docs/en/DATA_PROVENANCE.md): trace lamports, raw token units and decimals through the actual SDK and API.
+- [Contribution and CI audit](docs/en/REVIEW_CHECKS.md): compare written rules, executable checks and local hook activation.
 - [Testing and validation](docs/en/TESTING.md): commands, expected results and verification limits.
 - [Five-minute technical demo](docs/en/DEMO.md): a reviewer-oriented walkthrough.
 - [Contributing](docs/en/CONTRIBUTING.md): review scope, tests and commit conventions.

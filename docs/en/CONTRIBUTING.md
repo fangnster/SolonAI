@@ -4,7 +4,7 @@
 
 ## Reviewable changes
 
-Use a feature or bugfix branch and keep a change centered on a concrete behavior. Explain the failing input, expected result and actual validation. Avoid combining quantity semantics, new protocols, agent integrations and deployment changes without a shared reason.
+Use a descriptive `feature/<module>-<description>` or `fix/<module>-<description>` branch and keep a change centered on a concrete behavior. Explain the failing input, expected result and actual validation. Avoid combining quantity semantics, new protocols, agent integrations and deployment changes without a shared reason. See the [contribution and CI audit](REVIEW_CHECKS.md) for observed documentation/configuration discrepancies and event-specific checks.
 
 For wallet changes, preserve these contracts:
 
