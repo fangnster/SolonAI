@@ -18,6 +18,13 @@ from ..transport.rpc_client import EnhancedRPCClient
 logger = logging.getLogger(__name__)
 
 
+def _sol_from_lamports(lamports: int) -> Decimal:
+    """Construct native SOL exactly without context-rounded arithmetic."""
+    if type(lamports) is not int or not 0 <= lamports <= 2**64 - 1:
+        raise ValueError("lamports must be a u64 integer")
+    return Decimal(f"{lamports}e-9")
+
+
 class WalletService:
     """钱包资产查询服务"""
 
@@ -42,7 +49,7 @@ class WalletService:
             SOL 余额 (lamports + sol + usd)
         """
         lamports = await self._rpc.get_balance(address)
-        sol = Decimal(str(lamports)) / Decimal("1000000000")
+        sol = _sol_from_lamports(lamports)
 
         # 获取 SOL 价格
         usd_value = None

@@ -82,6 +82,9 @@ jobs:
       - name: Ruff format check
         run: ruff format --check apps/api/ services/
 
+      - name: SOL quantity regression
+        run: python -m unittest discover -s services/blockchain/tests -p test_sol_precision.py -v
+
   # ==========================================
   # Commitlint 检查
   # ==========================================
