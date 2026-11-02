@@ -95,7 +95,7 @@ class WalletService:
             SOL 余额 (lamports + sol + usd)
         """
         lamports = await self._rpc.get_balance(address)
-        sol = Decimal(str(lamports)) / Decimal("1000000000")
+        sol = _token_balance_from_raw(lamports, 9)
 
         # 获取 SOL 价格
         usd_value = None

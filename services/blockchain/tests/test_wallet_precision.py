@@ -3,7 +3,7 @@
 import copy
 import sys
 import unittest
-from decimal import Decimal, localcontext
+from decimal import Decimal, Inexact, Rounded, localcontext
 from pathlib import Path
 from unittest.mock import AsyncMock
 
@@ -67,6 +67,24 @@ class WalletPrecisionTests(unittest.IsolatedAsyncioTestCase):
             ctx.prec = 6
             token = await self.balance(2**64 - 1, 18, 18.446744073709552)
         self.assertEqual(token.balance, Decimal("18.446744073709551615"))
+
+    async def test_sol_quantity_is_exact_under_low_decimal_context_precision(self):
+        self.prices.get_token_price.return_value = None
+        cases = (
+            (0, "0.000000000"),
+            (1, "0.000000001"),
+            (2**64 - 1, "18446744073.709551615"),
+        )
+        for raw, expected in cases:
+            with self.subTest(lamports=raw), localcontext() as ctx:
+                ctx.prec = 6
+                ctx.clear_flags()
+                self.rpc.get_balance.return_value = raw
+                balance = await self.wallet.get_sol_balance("test-wallet", use_cache=False)
+                self.assertEqual(balance.lamports, raw)
+                self.assertEqual(balance.sol, Decimal(expected))
+                self.assertFalse(ctx.flags[Inexact])
+                self.assertFalse(ctx.flags[Rounded])
 
     async def test_mint_decimals_u8_upper_boundary_is_accepted(self):
         token = await self.balance(42, 255, 0.0)

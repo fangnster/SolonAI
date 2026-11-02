@@ -41,7 +41,7 @@ npm ci --ignore-scripts --no-audit --no-fund
 .venv/bin/python scripts/check_wallet_report.py --out .wallet-report-results
 ```
 
-Expected summary: `verified: true`, `total_tests: 160`, `cached_worker: B`, `cached_raw: "50"`, and `external_rpc_calls: 0`. Use a new output directory for each run. Explicit `--node` and `--redis-server` executable paths are supported.
+Expected summary: `verified: true`, `total_tests: 161`, `cached_worker: B`, `cached_raw: "50"`, and `external_rpc_calls: 0`. Use a new output directory for each run. Explicit `--node` and `--redis-server` executable paths are supported.
 
 ## Repository map
 
@@ -54,6 +54,6 @@ scripts/wallet_report/    Controlled SDK/API and real-Redis integration scenario
 docs/en/                  English setup, architecture, API and review material
 ```
 
-The local reference run on 2026-11-03 passed the 160 targeted tests, real-Redis integration, frontend lint/format/type checks, a complete Next.js build, and Python Ruff checks. Existing frontend lint warnings remain. This does not certify live provider availability, full browser behavior or production deployment. Remote CI status belongs to the individual GitHub run.
+The local reference checks on 2026-11-03 passed 161 targeted wallet tests and real-Redis integration, including exact SOL construction under a low Decimal context precision. Frontend lint/format/type checks, a complete Next.js build, and Python Ruff checks also passed; the frontend source is unchanged by the SOL conversion fix. Existing frontend lint warnings remain. This does not certify live provider availability, full browser behavior or production deployment. Remote CI status belongs to the individual GitHub run.
 
 This change set began as an assistant-provided guided reference. Historical merged contributions and the author's own learning participation should be described separately from the implementation and checks in this branch.

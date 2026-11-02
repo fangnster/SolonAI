@@ -38,7 +38,7 @@ def check(out, node, redis_server):
         ("api", "apps/api/tests", "test_assets_precision.py", 23),
         ("identity", "services/blockchain/tests", "test_wallet_identity.py", 21),
         ("rpc", "services/blockchain/tests", "test_rpc_token_accounts.py", 26),
-        ("amount", "services/blockchain/tests", "test_wallet_precision.py", 13),
+        ("amount", "services/blockchain/tests", "test_wallet_precision.py", 14),
     ]:
         result = run(
             [sys.executable, "-m", "unittest", "discover", "-s", directory, "-p", filename, "-v"],
