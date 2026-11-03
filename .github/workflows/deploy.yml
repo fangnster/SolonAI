@@ -1,8 +1,9 @@
 name: Deploy to Production
 
 on:
-  push:
-    branches: [main]
+  # This personal portfolio fork publishes code on main. Deployment is explicit
+  # and requires separately configured provider credentials and targets.
+  workflow_dispatch:
 
 jobs:
   deploy-frontend:

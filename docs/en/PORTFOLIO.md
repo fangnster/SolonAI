@@ -4,6 +4,8 @@
 
 This personal fork makes an unfinished Solana project reviewable through a bounded wallet-report and quote-contract path. The focus is exact quantities, identity, freshness, failure behavior and reproducible checks. It does not claim that every original product feature is complete.
 
+Publishing to `main` runs CI. The inherited Vercel/Railway deployment workflow is manual only; deployment requires separately configured credentials and targets. A green code check is not a deployed-service acceptance result.
+
 ## Contribution evidence
 
 The historical fangnster pull requests merged into the original project cover [database design](https://github.com/goodperson888/SolonAI/pull/3), [PostgreSQL/Redis integration](https://github.com/goodperson888/SolonAI/pull/6), [RPC documentation](https://github.com/goodperson888/SolonAI/pull/7), and [Docker/service integration and failure reporting](https://github.com/goodperson888/SolonAI/pull/8).
