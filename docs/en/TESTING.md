@@ -17,11 +17,12 @@ Use a new output directory for each run. If needed, append `--node /absolute/pat
 | Python wallet identity                                |      21 |
 | Python typed RPC parsing                              |      26 |
 | Python quantity construction                          |      14 |
+| Python raw quote contract                             |      14 |
 | Node exact quantities, with API JSON                  |      15 |
 | Node account identity/request ordering, with API JSON |      13 |
 | Node report context, with API JSON                    |       9 |
 | Node local report age, with API JSON                  |      12 |
-| **Total targeted tests**                              | **161** |
+| **Total targeted tests**                              | **175** |
 
 The runner also executes real Redis integration outside those test counts. Two independent Python workers use the actual cache coordinator and Lua script. Handshakes ensure A starts first, B reserves and publishes raw 50, then A resumes and its raw 100 is rejected. The check also exercises physical reservation expiry and old-token replay rejection.
 
@@ -48,7 +49,7 @@ npm run build --workspace @solon-ai/web
 
 On 2026-11-03, Python 3.11.15, Node 24.22.2 and Redis 7.2.11 passed 161 targeted tests and the real-Redis scenarios. The additional SOL test exercises 0, 1 and maximum-u64 lamports under Decimal precision 6, bypasses the service cache and excludes prices, and checks exact quantities without `Inexact` or `Rounded` signals. Subtests add input cases without inflating the test-method count. Frontend lint/format/type checks, the complete Next.js build, and Python Ruff checks passed; the frontend source is unchanged by this fix. Existing warnings in unrelated AI/risk/strategy screens and outdated Browserslist data remain warnings; the checks did not suppress them.
 
-These results are distinct from any GitHub Actions status. The workflow runs on main/develop pushes, course branches and pull requests targeting main/develop, uses Node 24, and uploads wallet regression outputs. CI obtains a Redis executable from the Ubuntu package manager; its version is reported in `results.json`.
+These historical results are distinct from any GitHub Actions status. The quote contract extension adds 14 HTTP test methods, bringing the current targeted runner to 175, plus five quote demonstration scenarios outside that count. The workflow runs on main/develop pushes, course and codex branches and pull requests targeting main/develop, uses Node 24, and uploads wallet regression outputs. CI obtains a Redis executable from the Ubuntu package manager; its version is reported in `results.json`.
 
 ## What remains outside this verification
 

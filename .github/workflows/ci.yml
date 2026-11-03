@@ -4,7 +4,7 @@ on:
   pull_request:
     branches: [develop, main]
   push:
-    branches: [develop, main, 'course/**']
+    branches: [develop, main, 'course/**', 'codex/**']
 
 jobs:
   # ==========================================
@@ -77,10 +77,10 @@ jobs:
         run: pip install -r apps/api/requirements.txt
 
       - name: Ruff check
-        run: ruff check apps/api/ services/ scripts/check_wallet_report.py scripts/trace_wallet_sources.py scripts/wallet_report/
+        run: ruff check apps/api/ services/ scripts/check_wallet_report.py scripts/trace_wallet_sources.py scripts/demo_swap_quote.py scripts/wallet_report/
 
       - name: Ruff format check
-        run: ruff format --check apps/api/ services/ scripts/check_wallet_report.py scripts/trace_wallet_sources.py scripts/wallet_report/
+        run: ruff format --check apps/api/ services/ scripts/check_wallet_report.py scripts/trace_wallet_sources.py scripts/demo_swap_quote.py scripts/wallet_report/
 
   # ==========================================
   # 钱包数量、账户身份与报告缓存回归

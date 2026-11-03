@@ -80,3 +80,5 @@ No separate stable public error-code enum or specific 400 classification for mal
 ## Other API areas
 
 The application also registers `/api/v1/auth`, `/strategy`, `/chat`, `/risk`, `/transactions`, `/defi` and `/knowledge`. Their current schemas are available at `/openapi.json` when the API is running. This document does not certify those workflows. In particular, auth login/verify are TODO implementations, and AI-dependent requests may be unavailable without the optional agent environment.
+
+The separate [swap quote contract](QUOTE_CONTRACT.md) now requires `amount_raw` as positive u64 integer text. The old float `amount` request is rejected with 422; callers must migrate. Provider response mismatches return 502. This is a quote-only boundary, not transaction authorization or a live-execution certificate.

@@ -9,7 +9,7 @@ import sys
 from typing import List, Literal, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -117,13 +117,29 @@ class WalletAssets(WalletAssetsPayload):
 
 
 class SwapQuoteRequest(BaseModel):
-    """Swap 报价请求"""
+    """Exact-in quote request; raw units belong to the input mint, never a guessed scale."""
 
-    input_mint: str
-    output_mint: str
-    amount: float  # 人类可读数量
-    slippage_bps: int = 50
-    provider: str = "auto"  # jupiter / raydium / auto
+    model_config = ConfigDict(extra="forbid")
+
+    input_mint: str = Field(strict=True, min_length=1, max_length=64)
+    output_mint: str = Field(strict=True, min_length=1, max_length=64)
+    amount_raw: str = Field(
+        strict=True,
+        min_length=1,
+        max_length=20,
+        description="Canonical positive u64 integer text in input-mint base units",
+    )
+    slippage_bps: int = Field(default=50, strict=True, ge=0, le=10000)
+    provider: Literal["auto", "jupiter", "raydium"] = "auto"
+
+    @field_validator("amount_raw")
+    @classmethod
+    def validate_amount_raw(cls, value: str) -> str:
+        if not value.isascii() or not value.isdigit() or value.startswith("0"):
+            raise ValueError("amount_raw must be canonical positive ASCII integer text")
+        if int(value) > 2**64 - 1:
+            raise ValueError("amount_raw exceeds u64")
+        return value
 
 
 class SwapQuoteResponse(BaseModel):
@@ -300,9 +316,7 @@ async def get_swap_quote(request: SwapQuoteRequest):
     try:
         tx_service = get_transaction_service()
         try:
-            # 将人类可读数量转为 lamports/最小单位
-            # 默认假设 9 decimals (SOL)，实际应根据代币 decimals 转换
-            amount_raw = int(request.amount * 1_000_000_000)
+            amount_raw = int(request.amount_raw)
 
             quote = await tx_service.get_swap_quote(
                 input_mint=request.input_mint,
@@ -313,6 +327,21 @@ async def get_swap_quote(request: SwapQuoteRequest):
             )
         finally:
             await tx_service.close()
+
+        # This endpoint requests ExactIn. Never return a quote for another request's units.
+        if (
+            type(quote.in_amount) is not int
+            or quote.in_amount != amount_raw
+            or type(quote.out_amount) is not int
+            or not 0 <= quote.out_amount <= 2**64 - 1
+            or quote.input_mint != request.input_mint
+            or quote.output_mint != request.output_mint
+            or quote.provider not in ("jupiter", "raydium")
+            or (request.provider != "auto" and quote.provider != request.provider)
+            or type(quote.slippage_bps) is not int
+            or quote.slippage_bps != request.slippage_bps
+        ):
+            raise HTTPException(status_code=502, detail="Quote does not match the request contract")
 
         return SwapQuoteResponse(
             provider=quote.provider,

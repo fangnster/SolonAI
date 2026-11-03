@@ -39,6 +39,7 @@ def check(out, node, redis_server):
         ("identity", "services/blockchain/tests", "test_wallet_identity.py", 21),
         ("rpc", "services/blockchain/tests", "test_rpc_token_accounts.py", 26),
         ("amount", "services/blockchain/tests", "test_wallet_precision.py", 14),
+        ("swap_units", "apps/api/tests", "test_swap_quote_units.py", 14),
     ]:
         result = run(
             [sys.executable, "-m", "unittest", "discover", "-s", directory, "-p", filename, "-v"],
@@ -115,6 +116,14 @@ def check(out, node, redis_server):
         "external_rpc_calls": timeline["external_rpc_calls"],
         "limits": ["no Redis failover/Cluster", "no live RPC/prices", "no browser lifecycle test"],
     }
+    quote = json.loads(
+        run(
+            [sys.executable, PROJECT / "scripts/demo_swap_quote.py"], out / "quote-units.log"
+        ).stdout
+    )
+    if quote.get("verified") is not True or quote.get("external_provider_calls") != 0:
+        raise ValueError("offline quote boundary demonstration failed")
+    report["quote_demo_cases"] = len(quote["cases"])
     (out / "results.json").write_text(json.dumps(report, indent=2) + "\n")
     return report
 

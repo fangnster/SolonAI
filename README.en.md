@@ -15,6 +15,8 @@ The wallet-report changes focus on a concrete problem: preserve token quantities
 - [Contribution and CI audit](docs/en/REVIEW_CHECKS.md): compare written rules, executable checks and local hook activation.
 - [Testing and validation](docs/en/TESTING.md): commands, expected results and verification limits.
 - [Five-minute technical demo](docs/en/DEMO.md): a reviewer-oriented walkthrough.
+- [Personal fork and portfolio guide](docs/en/PORTFOLIO.md): verified scope, contribution links and focused review questions.
+- [Exact swap quote contract](docs/en/QUOTE_CONTRACT.md): explicit input-mint raw units and rejected legacy float requests.
 - [Contributing](docs/en/CONTRIBUTING.md): review scope, tests and commit conventions.
 - [Wallet implementation notes](docs/wallet-report.md): detailed quantity and publication semantics.
 
@@ -26,6 +28,7 @@ The wallet-report changes focus on a concrete problem: preserve token quantities
 - Cache reports with their original read window, a bounded age and explicit source metadata.
 - Use atomic Redis reservation checks to reject a superseded task's late publication on one primary.
 - Validate the client contract, guard against stale wallet responses, and expire displayed balances as local time passes.
+- Pass validated raw-unit strings through the quote boundary and reject mismatched provider responses.
 
 USD values and legacy float fields remain approximate. Quote freshness, Token-2022, Redis failover, complete authentication and production hardening remain separate work. See the status table in the architecture guide.
 
@@ -36,14 +39,15 @@ Requirements: Python 3.11+, Node 24, npm and a Redis executable on macOS/Linux. 
 ```bash
 git clone https://github.com/fangnster/SolonAI.git
 cd SolonAI
-git switch course/w1d1-review
 python3.11 -m venv .venv
 .venv/bin/python -m pip install -r apps/api/requirements.txt -r requirements-dev.txt
 npm ci --ignore-scripts --no-audit --no-fund
 .venv/bin/python scripts/check_wallet_report.py --out .wallet-report-results
 ```
 
-Expected summary: `verified: true`, `total_tests: 161`, `cached_worker: B`, `cached_raw: "50"`, and `external_rpc_calls: 0`. Use a new output directory for each run. Explicit `--node` and `--redis-server` executable paths are supported.
+Expected summary: `verified: true`, `total_tests: 175`, `cached_worker: B`, `cached_raw: "50"`, `quote_demo_cases: 5`, and `external_rpc_calls: 0`. Use a new output directory for each run. Explicit `--node` and `--redis-server` executable paths are supported.
+
+For a Python-only quote-boundary demonstration, run `.venv/bin/python scripts/demo_swap_quote.py`. The real HTTP route uses an injected provider: no external provider calls or submitted orders. Its response prices are fixtures.
 
 ## Repository map
 
@@ -56,6 +60,6 @@ scripts/wallet_report/    Controlled SDK/API and real-Redis integration scenario
 docs/en/                  English setup, architecture, API and review material
 ```
 
-The local reference checks on 2026-11-03 passed 161 targeted wallet tests and real-Redis integration, including exact SOL construction under a low Decimal context precision. Frontend lint/format/type checks, a complete Next.js build, and Python Ruff checks also passed; the frontend source is unchanged by the SOL conversion fix. Existing frontend lint warnings remain. This does not certify live provider availability, full browser behavior or production deployment. Remote CI status belongs to the individual GitHub run.
+The earlier local reference checks on 2026-11-03 passed 161 targeted wallet tests and real-Redis integration. The quote-unit extension adds 14 HTTP test methods, bringing the current runner to 175. Five quote examples and eight provenance scenarios are separate from that test count. This does not certify live provider availability, full browser behavior or production deployment. Remote CI status belongs to the individual GitHub run.
 
 This change set began as an assistant-provided guided reference. Historical merged contributions and the author's own learning participation should be described separately from the implementation and checks in this branch.
